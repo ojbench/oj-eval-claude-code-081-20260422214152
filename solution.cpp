@@ -2,49 +2,31 @@
 using namespace std;
 
 const int MAXN = 3005;
-const int MAXM = 4505;
 
-struct Edge {
-    int to, cap, rev;
-};
-
-class MaxFlow {
+class MaxFlowSolver {
 private:
-    vector<Edge> graph[MAXN];
-    int level[MAXN];
-    int iter[MAXN];
+    int n;
+    vector<vector<int>> adj;
+    vector<int> parent;
 
-    void bfs(int s) {
-        memset(level, -1, sizeof(level));
-        queue<int> que;
-        level[s] = 0;
-        que.push(s);
+    int bfs(int source, int sink, vector<vector<int>>& capacity) {
+        fill(parent.begin(), parent.end(), -1);
+        parent[source] = source;
+        queue<pair<int, int>> q;
+        q.push({source, INT_MAX});
 
-        while (!que.empty()) {
-            int v = que.front();
-            que.pop();
+        while (!q.empty()) {
+            int u = q.front().first;
+            int flow = q.front().second;
+            q.pop();
 
-            for (size_t i = 0; i < graph[v].size(); i++) {
-                Edge &e = graph[v][i];
-                if (e.cap > 0 && level[e.to] < 0) {
-                    level[e.to] = level[v] + 1;
-                    que.push(e.to);
-                }
-            }
-        }
-    }
+            if (u == sink) return flow;
 
-    int dfs(int v, int t, int f) {
-        if (v == t) return f;
-
-        for (int &i = iter[v]; i < (int)graph[v].size(); i++) {
-            Edge &e = graph[v][i];
-            if (e.cap > 0 && level[v] < level[e.to]) {
-                int d = dfs(e.to, t, min(f, e.cap));
-                if (d > 0) {
-                    e.cap -= d;
-                    graph[e.to][e.rev].cap += d;
-                    return d;
+            for (int v : adj[u]) {
+                if (parent[v] == -1 && capacity[u][v] > 0) {
+                    parent[v] = u;
+                    int min_cap = min(flow, capacity[u][v]);
+                    q.push({v, min_cap});
                 }
             }
         }
@@ -52,46 +34,45 @@ private:
     }
 
 public:
-    void init(int n) {
-        for (int i = 0; i < n; i++) {
-            graph[i].clear();
-        }
+    MaxFlowSolver(int N) : n(N) {
+        adj.resize(n);
+        parent.resize(n);
     }
 
-    void addEdge(int from, int to, int cap) {
-        graph[from].push_back({to, cap, (int)graph[to].size()});
-        graph[to].push_back({from, 0, (int)graph[from].size() - 1});
-        graph[from].push_back({to, 0, (int)graph[to].size()});
-        graph[to].push_back({from, cap, (int)graph[from].size() - 1});
+    void addEdge(int u, int v) {
+        adj[u].push_back(v);
+        adj[v].push_back(u);
     }
 
-    int maxFlow(int s, int t) {
-        const int INF = 1e9;
+    vector<vector<int>> createCapacityMatrix() {
+        return vector<vector<int>>(n, vector<int>(n, 0));
+    }
+
+    void addEdgeCapacity(vector<vector<int>>& capacity, int u, int v, int cap) {
+        capacity[u][v] += cap;
+        capacity[v][u] += cap;
+    }
+
+    int maxFlow(int source, int sink, vector<vector<int>>& capacity) {
         int flow = 0;
+        int new_flow;
 
-        while (true) {
-            bfs(s);
-            if (level[t] < 0) break;
+        // Since each node has degree at most 3, max flow between any
+        // two nodes <= 3. Early termination optimization.
+        while ((new_flow = bfs(source, sink, capacity)) > 0) {
+            flow += new_flow;
 
-            memset(iter, 0, sizeof(iter));
-            int f;
-            while ((f = dfs(s, t, INF)) > 0) {
-                flow += f;
+            int cur = sink;
+            while (cur != source) {
+                int prev = parent[cur];
+                capacity[prev][cur] -= new_flow;
+                capacity[cur][prev] += new_flow;
+                cur = prev;
             }
+
+            if (flow >= 3) break;
         }
         return flow;
-    }
-
-    void reset() {
-        for (int i = 0; i < MAXN; i++) {
-            for (size_t j = 0; j < graph[i].size(); j++) {
-                if (j % 2 == 0) {
-                    graph[i][j].cap = 1;
-                } else {
-                    graph[i][j].cap = 0;
-                }
-            }
-        }
     }
 };
 
@@ -103,8 +84,8 @@ int main() {
     cin >> n >> m;
 
     vector<pair<int, int>> edges;
-    MaxFlow mf;
-    mf.init(n);
+    MaxFlowSolver solver(n);
+    vector<vector<int>> original = solver.createCapacityMatrix();
 
     for (int i = 0; i < m; i++) {
         int a, b;
@@ -112,15 +93,16 @@ int main() {
         a--;
         b--;
         edges.push_back({a, b});
-        mf.addEdge(a, b, 1);
+        solver.addEdge(a, b);
+        solver.addEdgeCapacity(original, a, b, 1);
     }
 
     long long total = 0;
 
     for (int a = 0; a < n; a++) {
         for (int b = a + 1; b < n; b++) {
-            mf.reset();
-            int flow = mf.maxFlow(a, b);
+            vector<vector<int>> capacity = original;
+            int flow = solver.maxFlow(a, b, capacity);
             total += flow;
         }
     }
