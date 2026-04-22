@@ -1,0 +1,9 @@
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+CMakeDoxyfile.in
+CMakeDoxygenDefaults.cmake
+Makefile
+code
+*.o
+*.a
